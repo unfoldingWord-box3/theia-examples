@@ -3,10 +3,11 @@
  */
 import { ContainerModule } from '@theia/core/shared/inversify';
 import { EmptyContribution } from './empty-contribution';
+import { CommandContribution } from '@theia/core';
 
 
 export default new ContainerModule(bind => {
 
     // Replace this line with the desired binding, e.g. "bind(CommandContribution).to(EmptyContribution)
-    bind(EmptyContribution).toSelf();
+    bind(CommandContribution).to(EmptyContribution);
 });
