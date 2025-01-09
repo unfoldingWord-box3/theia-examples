@@ -9,7 +9,7 @@ import { Message } from '@theia/core/lib/browser';
 export class WidgetExtensionWidget extends ReactWidget {
 
     static readonly ID = 'widgetExtension:widget';
-    static readonly LABEL = 'WidgetExtension Widget';
+    static readonly LABEL = 'WidgetExtension Label';
 
     @inject(MessageService)
     protected readonly messageService!: MessageService;
@@ -29,11 +29,11 @@ export class WidgetExtensionWidget extends ReactWidget {
     }
 
     render(): React.ReactElement {
-        const header = `This is a sample widget which simply calls the messageService
+        const header = `WidgetExtension widget which simply calls the messageService
         in order to display an info message to end users.`;
         return <div id='widget-container'>
             <AlertMessage type='INFO' header={header} />
-            <button id='displayMessageButton' className='theia-button secondary' title='Display Message' onClick={_a => this.displayMessage()}>Display Message</button>
+            <button id='displayMessageButton' className='theia-button secondary' title='WidgetExtension Message' onClick={_a => this.displayMessage()}>WidgetExtension Message</button>
         </div>
     }
 

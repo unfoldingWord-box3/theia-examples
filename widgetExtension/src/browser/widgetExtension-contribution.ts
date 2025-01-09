@@ -21,7 +21,7 @@ export class WidgetExtensionContribution extends AbstractViewContribution<Widget
         super({
             widgetId: WidgetExtensionWidget.ID,
             widgetName: WidgetExtensionWidget.LABEL,
-            defaultWidgetOptions: { area: 'left' },
+            defaultWidgetOptions: { area: 'main' },
             toggleCommandId: WidgetExtensionCommand.id
         });
     }
