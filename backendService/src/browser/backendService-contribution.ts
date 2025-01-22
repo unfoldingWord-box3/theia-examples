@@ -25,7 +25,7 @@ export class BackendServiceCommandContribution implements CommandContribution {
             execute: () => this.helloBackendWithClientService.greet().then(r => console.log(r))
         });
         registry.registerCommand(SayHelloViaBackendCommand, {
-            execute: () => this.helloBackendService.sayHelloTo('World').then(r => console.log(r))
+            execute: () => this.helloBackendService.sayHelloTo('Greet').then(r => console.log(r))
         });
     }
 }
