@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
-			<Identity Language="en-US" Id="checking-extension" Version="0.9.13" Publisher="unfoldingWord" />
+			<Identity Language="en-US" Id="checking-extension" Version="0.9.14" Publisher="unfoldingWord" />
 			<DisplayName>checking-extension</DisplayName>
 			<Description xml:space="preserve">A vscode extension to open tn_check and twl_check files for checking verses</Description>
 			<Tags></Tags>

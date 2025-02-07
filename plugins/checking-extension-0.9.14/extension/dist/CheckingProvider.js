@@ -42,6 +42,16 @@ const BooksOfTheBible_1 = require("./utilities/BooksOfTheBible");
 const network_1 = require("./utilities/network");
 const gitUtils_1 = require("./utilities/gitUtils");
 const path_1 = __importDefault(require("path"));
+let _callbacks = {}; // stores callback by key
+function saveCallBack(key, callback) {
+    // @ts-ignore
+    _callbacks[key] = callback;
+}
+function getCallBack(key) {
+    // @ts-ignore
+    const callback = _callbacks?.[key];
+    return callback;
+}
 async function showInformationMessage(message, modal = false, detail = null) {
     if (modal) {
         const options = { modal: true };
@@ -298,6 +308,185 @@ class CheckingProvider {
         await this.setContext("preRelease", !!preRelease);
         await vscode.commands.executeCommand(`workbench.action.openWalkthrough`, `unfoldingWord.checking-extension#initChecking`, false);
         await (0, fileUtils_1.delay)(100);
+    }
+    static async showUserInformation(webviewPanel, options) {
+        this.promptUserForOption(webviewPanel, options);
+    }
+    static async promptUserForOption(webviewPanel, options) {
+        const _promptUserForOption = (options) => {
+            const promise = new Promise((resolve) => {
+                saveCallBack("promptUserForOption", resolve);
+                webviewPanel.webview.postMessage({
+                    command: "promptUserForOption",
+                    text: "prompt User For Option",
+                    data: options
+                });
+            });
+            return promise;
+        };
+        const results = await _promptUserForOption(options);
+        saveCallBack("promptUserForOption", null);
+        return results;
+    }
+    static async createGlCheck(webviewPanel) {
+        let success = false;
+        let catalog = (0, resourceUtils_1.getSavedCatalog)(false);
+        const preRelease = this.getContext('preRelease');
+        let loadCatalog = true;
+        if (catalog) {
+            // prompt if we should load new catalog
+            const data = await this.promptUserForOption(webviewPanel, { message: 'Do you wish to download the current catalog?', type: 'yes/No' });
+            // @ts-ignore
+            const reloadCatalog = !!data?.response;
+            loadCatalog = reloadCatalog;
+        }
+        if (loadCatalog) {
+            console.log("checking-extension.downloadCatalog");
+            // show user we are loading new catalog
+            this.showUserInformation(webviewPanel, { message: 'Downloading current catalog', busy: true });
+            await (0, fileUtils_1.delay)(100);
+            catalog = await (0, resourceUtils_1.getLatestResourcesCatalog)(resourceUtils_1.resourcesPath, preRelease);
+            if (!catalog) {
+                showErrorMessage(`Error Downloading Updated Resource Catalog!`, true);
+                return {
+                    errorMessage: `Error Downloading Updated Resource Catalog!`,
+                    success: false
+                };
+            }
+            (0, resourceUtils_1.saveCatalog)(catalog, preRelease);
+        }
+        //////////////////////////////////
+        // Target language
+        // @ts-ignore
+        const targetLangChoices = (0, languages_2.getLanguagePrompts)((0, resourceUtils_1.getLanguagesInCatalog)(catalog));
+        // prompt for GL language selection
+        let data = await this.promptUserForOption(webviewPanel, { message: 'Select the target language:', type: 'option', choices: targetLangChoices });
+        // @ts-ignore
+        let targetLanguagePick = data?.responseStr;
+        // @ts-ignore
+        targetLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(targetLanguagePick) || 'en';
+        if (!targetLanguagePick) {
+            showErrorMessage(`No target language selected!`, true);
+            return {
+                errorMessage: `Error No target language selected!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`Target Language selected ${targetLanguagePick}`);
+        const targetOwners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], targetLanguagePick);
+        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target organization:', type: 'option', choices: targetOwners });
+        // @ts-ignore
+        let targetOwnerPick = data?.responseStr;
+        if (!targetOwnerPick) {
+            showErrorMessage(`No target owner selected!`, true);
+            return {
+                errorMessage: `Error No target owner selected!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`Target Language Owner selected ${targetOwnerPick}`);
+        const resources = (0, resourceUtils_1.findResourcesForLangAndOwner)(catalog || [], targetLanguagePick, targetOwnerPick || '');
+        const bibles = (0, resourceUtils_1.findBibleResources)(resources || []);
+        const bibleIds = (0, resourceUtils_1.getResourceIdsInCatalog)(bibles || []);
+        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target Bible ID:', type: 'option', choices: bibleIds });
+        // @ts-ignore
+        let targetBibleIdPick = data?.responseStr;
+        if (!targetBibleIdPick) {
+            showErrorMessage(`No target Bible selected!`, true);
+            return {
+                errorMessage: `Error No target Bible selected!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`Target Bible selected ${targetBibleIdPick}`);
+        const targetBibleOptions = {
+            languageId: targetLanguagePick,
+            owner: targetOwnerPick,
+            bibleId: targetBibleIdPick
+        };
+        // @ts-ignore
+        const { manifest } = await (0, resourceUtils_1.fetchBibleManifest)('', targetBibleOptions.owner, targetBibleOptions.languageId, targetBibleOptions.bibleId, resourceUtils_1.resourcesPath, 'none', 'master');
+        // @ts-ignore
+        const bookIds = manifest?.projects?.map((project) => project.identifier);
+        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target Book:', type: 'option', choices: bookIds });
+        const bookId = data?.responseStr;
+        if (!bookId) {
+            showErrorMessage(`No target Book selected!`, true);
+            return {
+                errorMessage: `Error No target Book selected!`,
+                success: false
+            };
+        }
+        //////////////////////////////////
+        // select GL language
+        const gatewayLanguages = (0, languages_2.getGatewayLanguages)();
+        const glChoices = (0, languages_2.getLanguagePrompts)(gatewayLanguages);
+        data = await this.promptUserForOption(webviewPanel, { message: 'Select the gateway checking language:', type: 'option', choices: glChoices });
+        let gwLanguagePick = data?.responseStr;
+        // @ts-ignore
+        gwLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(gwLanguagePick) || "en";
+        if (!gwLanguagePick) {
+            showErrorMessage(`No GL checking language selected!`, true);
+            return {
+                errorMessage: `Error GL checking language selected!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`GL checking language selected ${gwLanguagePick}`);
+        const owners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], gwLanguagePick);
+        data = await this.promptUserForOption(webviewPanel, { message: 'Select the gateway checking organization:', type: 'option', choices: owners });
+        const gwOwnerPick = data?.responseStr;
+        if (!gwOwnerPick) {
+            showErrorMessage(`No GL checking owner selected!`, true);
+            return {
+                errorMessage: `Error No GL checking owner selected!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`GL checking language selected ${gwLanguagePick}`);
+        this.showUserInformation(webviewPanel, { message: 'Initializing Project', busy: true });
+        const glOptions = {
+            languageId: gwLanguagePick,
+            owner: gwOwnerPick
+        };
+        const results = await this.loadResourcesWithProgress(glOptions.languageId, glOptions.owner || '', resourceUtils_1.resourcesPath, preRelease, bookId);
+        // @ts-ignore
+        if (results.error) {
+            showErrorMessage(`Error Downloading Gateway Language resources!`, true);
+            return {
+                errorMessage: `Error Downloading Gateway Language resources!`,
+                success: false
+            };
+        }
+        await showInformationMessage(`Gateway Language Resources Loaded`, true);
+        const targetLanguageId = targetBibleOptions.languageId;
+        const targetBibleId = targetBibleOptions.bibleId || "";
+        const targetOwner = targetBibleOptions.owner;
+        await showInformationMessage(`Downloading Target Bible ${targetOwner}/${targetLanguageId}/${targetBibleId}`);
+        // @ts-ignore
+        const targetFoundPath = await (0, resourceUtils_1.downloadTargetBible)(targetBibleId, resourceUtils_1.resourcesPath, targetLanguageId, targetOwner, catalog, bookId, 'master');
+        if (!targetFoundPath) {
+            await showErrorMessage(`Target Bible Failed to Load`, true);
+            showErrorMessage(`Target Bible Failed to Load`, true);
+            return {
+                errorMessage: `Target Bible Failed to Load`,
+                success: false
+            };
+        }
+        const { repoInitSuccess, repoPath } = await this.doRepoInitAll(targetLanguageId, targetBibleId, glOptions.languageId, targetOwner, glOptions.owner, catalog, bookId, preRelease);
+        if (!repoInitSuccess) {
+            await showErrorMessage(`Failed to Initialize Checking Project`, true);
+            showErrorMessage(`Failed to Initialize Checking Project`, true);
+            return {
+                errorMessage: `Failed to Initialize Checking Project`,
+                success: false
+            };
+        }
+        // navigate to new folder
+        const repoPathUri = vscode.Uri.file(repoPath);
+        await showInformationMessage(`Successfully initialized project at ${repoPath}`, true, 'You can now do checking by opening translationWords checks in `checking/twl` or translationNotes checks in `checking/tn`');
+        vscode.commands.executeCommand("vscode.openFolder", repoPathUri);
+        return { success: true };
     }
     static setConfiguration(key, value) {
         vscode.workspace.getConfiguration("checking-extension").update(key, value);
@@ -641,6 +830,17 @@ class CheckingProvider {
             }
             return CheckingProvider.secretStorage;
         };
+        const createNewOlCheck = (text, data) => {
+            (0, fileUtils_1.delay)(100).then(async () => {
+                console.log(`createNewOlCheck: ${text} - ${data}`);
+                const results = await CheckingProvider.createGlCheck(webviewPanel);
+                // send back value
+                webviewPanel.webview.postMessage({
+                    command: "createNewOlCheckResponse",
+                    data: results,
+                });
+            });
+        };
         const uploadToDCS = (text, data) => {
             // @ts-ignore
             const token = data?.token;
@@ -754,18 +954,33 @@ class CheckingProvider {
                 }
             });
         };
+        const promptUserForOptionResponse = (text, data) => {
+            console.log(`promptUserForOptionResponse: ${text}`);
+            const key = "promptUserForOption";
+            const callback = getCallBack(key);
+            if (callback) {
+                // @ts-ignore
+                callback(data);
+                saveCallBack(key, null); // clear callback after use
+            }
+            else {
+                console.error(`No handler for promptUserForOptionResponse(${key}) response`);
+            }
+        };
         const messageEventHandlers = (message) => {
             const { command, text, data } = message;
             // console.log(`messageEventHandlers ${command}: ${text}`)
             const commandToFunctionMapping = {
-                ["loaded"]: firstLoad,
-                ["saveCheckingData"]: saveCheckingData,
+                ["changeTargetVerse"]: changeTargetVerse_,
                 ["getSecret"]: getSecret,
+                ["createNewOlCheck"]: createNewOlCheck,
+                ["loaded"]: firstLoad,
+                ["saveAppSettings"]: saveAppSettings,
+                ["saveCheckingData"]: saveCheckingData,
                 ["saveSecret"]: saveSecret,
                 ["setLocale"]: setLocale_,
-                ["changeTargetVerse"]: changeTargetVerse_,
                 ["uploadToDCS"]: uploadToDCS,
-                ["saveAppSettings"]: saveAppSettings,
+                ["promptUserForOptionResponse"]: promptUserForOptionResponse,
             };
             const commandFunction = commandToFunctionMapping[command];
             if (commandFunction) {
