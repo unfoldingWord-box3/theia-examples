@@ -78,3 +78,23 @@ Create a npm user and login to the npm registry, [more on npm publishing](https:
 Publish packages with lerna to update versions properly across local packages, [more on publishing with lerna](https://github.com/lerna/lerna#publish).
 
     npx lerna publish
+
+## Creating installer for labelprovider
+
+Build the electron app
+
+    yarn build:electron
+    cd electron-app
+    yarn && yarn bundle
+
+Create the application installer.  The example for MacOS is:
+
+    cd electron-app    
+    yarn electron-builder --mac --universal
+
+Create the application installer.  The example for Windows is:
+
+    cd electron-app    
+    yarn electron-builder --win
+
+For Linux replace `--win` with `--linux deb`
