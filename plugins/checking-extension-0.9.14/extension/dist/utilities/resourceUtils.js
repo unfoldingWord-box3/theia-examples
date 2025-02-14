@@ -360,15 +360,18 @@ function findResource(catalog, languageId, owner, resourceId) {
  * search catalog to find a match for owner, languageId, resourceId
  * @param {object[]} catalog - list of items in catalog
  * @param {string} languageId
+ * @param {string[]} ignoreOwners - list of owners to ignore
  */
-function findOwnersForLang(catalog, languageId) {
+function findOwnersForLang(catalog, languageId, ignoreOwners = []) {
     const owners = {};
     for (const item of catalog) {
         const langId = item.languageId;
         if (langId === languageId) {
             const owner_ = item.owner;
-            // @ts-ignore
-            owners[owner_] = true;
+            if (!ignoreOwners.includes(owner_)) {
+                // @ts-ignore
+                owners[owner_] = true;
+            }
         }
     }
     return Object.keys(owners).sort();
@@ -621,10 +624,17 @@ async function fetchBibleResourceBook(catalog, languageId, owner, resourceId, re
             //      https://git.door43.org/es-419_gl/es-419_glt/raw/tag/v41/manifest.yaml
             const parts = item.downloadUrl?.split(owner);
             let baseUrl = '';
-            if (parts?.length) {
+            let downloadOwner = owner;
+            if (parts?.length > 1) {
                 baseUrl = parts[0];
             }
-            const { rawUrl, manifest, manifestYaml, } = await fetchBibleManifest(baseUrl, owner, languageId, resourceId, resourcesPath, bookId, version);
+            else { // url is redirect to different owner
+                const parts = item.downloadUrl?.split('/');
+                const baseParts = parts.slice(0, 3);
+                baseUrl = baseParts.join('/') + '/';
+                downloadOwner = parts[3];
+            }
+            const { rawUrl, manifest, manifestYaml, } = await fetchBibleManifest(baseUrl, downloadOwner, languageId, resourceId, resourcesPath, bookId, version);
             const destFolder = getDestFolderForRepoFile(resourcesPath, languageId, resourceId, bookId, version, owner);
             fs.emptyDirSync(destFolder);
             fs.outputFileSync(path.join(destFolder, 'manifest.yaml'), manifestYaml, 'UTF-8');
@@ -672,10 +682,17 @@ async function fetchHelpsResourceBook(catalog, languageId, owner, resourceId, re
             //      https://git.door43.org/es-419_gl/es-419_glt/raw/tag/v41/manifest.yaml
             const parts = item.downloadUrl?.split(owner);
             let baseUrl = '';
-            if (parts?.length) {
+            let downloadOwner = owner;
+            if (parts?.length > 1) {
                 baseUrl = parts[0];
             }
-            const { rawUrl, manifest, manifestYaml, } = await fetchBibleManifest(baseUrl, owner, languageId, resourceId, resourcesPath, bookId, version);
+            else { // url is redirect to different owner
+                const parts = item.downloadUrl?.split('/');
+                const baseParts = parts.slice(0, 3);
+                baseUrl = baseParts.join('/') + '/';
+                downloadOwner = parts[3];
+            }
+            const { rawUrl, manifest, manifestYaml, } = await fetchBibleManifest(baseUrl, downloadOwner, languageId, resourceId, resourcesPath, bookId, version);
             const destFolder = getDestFolderForRepoFile(resourcesPath, languageId, resourceId, bookId, version, owner);
             fs.emptyDirSync(destFolder);
             fs.outputFileSync(path.join(destFolder, 'manifest.yaml'), manifestYaml, 'UTF-8');

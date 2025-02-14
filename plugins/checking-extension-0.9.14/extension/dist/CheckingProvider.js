@@ -35,13 +35,13 @@ const TranslationCheckingPanel_1 = require("./panels/TranslationCheckingPanel");
 const resourceUtils_1 = require("./utilities/resourceUtils");
 const fileUtils_1 = require("./utilities/fileUtils");
 const languages_1 = require("./utilities/languages");
-const languages_2 = require("./utilities/languages");
 // @ts-ignore
 const deep_equal_1 = __importDefault(require("deep-equal"));
 const BooksOfTheBible_1 = require("./utilities/BooksOfTheBible");
 const network_1 = require("./utilities/network");
 const gitUtils_1 = require("./utilities/gitUtils");
 const path_1 = __importDefault(require("path"));
+const translations_1 = require("./utilities/translations");
 let _callbacks = {}; // stores callback by key
 function saveCallBack(key, callback) {
     // @ts-ignore
@@ -105,6 +105,7 @@ class CheckingProvider {
     context;
     static currentState = {};
     static secretStorage = null;
+    static translations = null;
     constructor(context) {
         this.context = context;
     }
@@ -328,6 +329,20 @@ class CheckingProvider {
         saveCallBack("promptUserForOption", null);
         return results;
     }
+    static translate(key, data = null, defaultStr = null) {
+        const translation = (0, translations_1.lookupTranslationForKey)(CheckingProvider.translations, key, data, defaultStr);
+        return translation;
+    }
+    ;
+    static showError(key, data = null) {
+        const message = this.translate(key, data);
+        showErrorMessage(`${key} - ${message}`, true);
+        return {
+            errorMessage: message,
+            success: false
+        };
+    }
+    ;
     static async createGlCheck(webviewPanel) {
         let success = false;
         let catalog = (0, resourceUtils_1.getSavedCatalog)(false);
@@ -335,7 +350,7 @@ class CheckingProvider {
         let loadCatalog = true;
         if (catalog) {
             // prompt if we should load new catalog
-            const data = await this.promptUserForOption(webviewPanel, { message: 'Do you wish to download the current catalog?', type: 'yes/No' });
+            const data = await this.promptUserForOption(webviewPanel, { message: 'prompts.downloadCatalog', type: 'yes/No' });
             // @ts-ignore
             const reloadCatalog = !!data?.response;
             loadCatalog = reloadCatalog;
@@ -343,62 +358,49 @@ class CheckingProvider {
         if (loadCatalog) {
             console.log("checking-extension.downloadCatalog");
             // show user we are loading new catalog
-            this.showUserInformation(webviewPanel, { message: 'Downloading current catalog', busy: true });
+            this.showUserInformation(webviewPanel, { message: 'status.downloadingCatalog', busy: true });
             await (0, fileUtils_1.delay)(100);
             catalog = await (0, resourceUtils_1.getLatestResourcesCatalog)(resourceUtils_1.resourcesPath, preRelease);
             if (!catalog) {
-                showErrorMessage(`Error Downloading Updated Resource Catalog!`, true);
-                return {
-                    errorMessage: `Error Downloading Updated Resource Catalog!`,
-                    success: false
-                };
+                return this.showError('status.catalogDownloadError');
             }
             (0, resourceUtils_1.saveCatalog)(catalog, preRelease);
         }
         //////////////////////////////////
         // Target language
         // @ts-ignore
-        const targetLangChoices = (0, languages_2.getLanguagePrompts)((0, resourceUtils_1.getLanguagesInCatalog)(catalog));
+        const targetLangChoices = (0, languages_1.getLanguagePrompts)((0, resourceUtils_1.getLanguagesInCatalog)(catalog));
         // prompt for GL language selection
-        let data = await this.promptUserForOption(webviewPanel, { message: 'Select the target language:', type: 'option', choices: targetLangChoices });
+        let data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectTargetLanguage', type: 'option', choices: targetLangChoices });
         // @ts-ignore
         let targetLanguagePick = data?.responseStr;
         // @ts-ignore
-        targetLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(targetLanguagePick) || 'en';
+        targetLanguagePick = (0, languages_1.getLanguageCodeFromPrompts)(targetLanguagePick) || 'en';
         if (!targetLanguagePick) {
-            showErrorMessage(`No target language selected!`, true);
-            return {
-                errorMessage: `Error No target language selected!`,
-                success: false
-            };
+            return this.showError('status.noLanguage');
         }
-        await showInformationMessage(`Target Language selected ${targetLanguagePick}`);
+        let message = this.translate('status.languageSelected', { targetLanguagePick });
+        await showInformationMessage(message);
         const targetOwners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], targetLanguagePick);
-        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target organization:', type: 'option', choices: targetOwners });
+        data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectOrganization', type: 'option', choices: targetOwners });
         // @ts-ignore
         let targetOwnerPick = data?.responseStr;
         if (!targetOwnerPick) {
-            showErrorMessage(`No target owner selected!`, true);
-            return {
-                errorMessage: `Error No target owner selected!`,
-                success: false
-            };
+            return this.showError('status.noOwner');
         }
-        await showInformationMessage(`Target Language Owner selected ${targetOwnerPick}`);
+        message = this.translate('status.ownerSelected', { targetOwnerPick });
+        await showInformationMessage(message);
         const resources = (0, resourceUtils_1.findResourcesForLangAndOwner)(catalog || [], targetLanguagePick, targetOwnerPick || '');
         const bibles = (0, resourceUtils_1.findBibleResources)(resources || []);
         const bibleIds = (0, resourceUtils_1.getResourceIdsInCatalog)(bibles || []);
-        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target Bible ID:', type: 'option', choices: bibleIds });
+        data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectTargetBible', type: 'option', choices: bibleIds });
         // @ts-ignore
         let targetBibleIdPick = data?.responseStr;
         if (!targetBibleIdPick) {
-            showErrorMessage(`No target Bible selected!`, true);
-            return {
-                errorMessage: `Error No target Bible selected!`,
-                success: false
-            };
+            return this.showError('status.noBible');
         }
-        await showInformationMessage(`Target Bible selected ${targetBibleIdPick}`);
+        message = this.translate('status.bibleSelected', { targetBibleIdPick });
+        await showInformationMessage(message);
         const targetBibleOptions = {
             languageId: targetLanguagePick,
             owner: targetOwnerPick,
@@ -408,43 +410,39 @@ class CheckingProvider {
         const { manifest } = await (0, resourceUtils_1.fetchBibleManifest)('', targetBibleOptions.owner, targetBibleOptions.languageId, targetBibleOptions.bibleId, resourceUtils_1.resourcesPath, 'none', 'master');
         // @ts-ignore
         const bookIds = manifest?.projects?.map((project) => project.identifier);
-        data = await this.promptUserForOption(webviewPanel, { message: 'Select the target Book:', type: 'option', choices: bookIds });
+        data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectTargetBook', type: 'option', choices: bookIds });
         const bookId = data?.responseStr;
         if (!bookId) {
-            showErrorMessage(`No target Book selected!`, true);
-            return {
-                errorMessage: `Error No target Book selected!`,
-                success: false
-            };
+            return this.showError('status.noBook');
         }
+        message = this.translate('status.bookSelected', { targetBookPick: bookId });
+        await showInformationMessage(message);
         //////////////////////////////////
         // select GL language
-        const gatewayLanguages = (0, languages_2.getGatewayLanguages)();
-        const glChoices = (0, languages_2.getLanguagePrompts)(gatewayLanguages);
-        data = await this.promptUserForOption(webviewPanel, { message: 'Select the gateway checking language:', type: 'option', choices: glChoices });
+        const gatewayLanguages = (0, languages_1.getGatewayLanguages)();
+        const glChoices = (0, languages_1.getLanguagePrompts)(gatewayLanguages);
+        data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectGatewayLanguage', type: 'option', choices: glChoices });
         let gwLanguagePick = data?.responseStr;
         // @ts-ignore
-        gwLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(gwLanguagePick) || "en";
+        gwLanguagePick = (0, languages_1.getLanguageCodeFromPrompts)(gwLanguagePick) || "en";
         if (!gwLanguagePick) {
-            showErrorMessage(`No GL checking language selected!`, true);
-            return {
-                errorMessage: `Error GL checking language selected!`,
-                success: false
-            };
+            return this.showError('status.noCheckingLanguage');
         }
-        await showInformationMessage(`GL checking language selected ${gwLanguagePick}`);
-        const owners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], gwLanguagePick);
-        data = await this.promptUserForOption(webviewPanel, { message: 'Select the gateway checking organization:', type: 'option', choices: owners });
+        message = this.translate('status.glSelected', { gwLanguagePick });
+        await showInformationMessage(message);
+        const ignoreOwners = ['Door43-Catalog'];
+        const owners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], gwLanguagePick, ignoreOwners);
+        if (!owners?.length) {
+            return this.showError('status.noGlOwner');
+        }
+        data = await this.promptUserForOption(webviewPanel, { message: 'prompts.selectGatewayOwner', type: 'option', choices: owners });
         const gwOwnerPick = data?.responseStr;
         if (!gwOwnerPick) {
-            showErrorMessage(`No GL checking owner selected!`, true);
-            return {
-                errorMessage: `Error No GL checking owner selected!`,
-                success: false
-            };
+            return this.showError('status.noGlOwner');
         }
-        await showInformationMessage(`GL checking language selected ${gwLanguagePick}`);
-        this.showUserInformation(webviewPanel, { message: 'Initializing Project', busy: true });
+        message = this.translate('status.glOwnerSelected', { gwOwnerPick });
+        await showInformationMessage(message);
+        this.showUserInformation(webviewPanel, { message: 'status.creatingProject', busy: true });
         const glOptions = {
             languageId: gwLanguagePick,
             owner: gwOwnerPick
@@ -452,39 +450,27 @@ class CheckingProvider {
         const results = await this.loadResourcesWithProgress(glOptions.languageId, glOptions.owner || '', resourceUtils_1.resourcesPath, preRelease, bookId);
         // @ts-ignore
         if (results.error) {
-            showErrorMessage(`Error Downloading Gateway Language resources!`, true);
-            return {
-                errorMessage: `Error Downloading Gateway Language resources!`,
-                success: false
-            };
+            return this.showError('status.glResourceDownloadError');
         }
-        await showInformationMessage(`Gateway Language Resources Loaded`, true);
         const targetLanguageId = targetBibleOptions.languageId;
         const targetBibleId = targetBibleOptions.bibleId || "";
         const targetOwner = targetBibleOptions.owner;
-        await showInformationMessage(`Downloading Target Bible ${targetOwner}/${targetLanguageId}/${targetBibleId}`);
+        const targetBibleDescr = `${targetOwner}/${targetLanguageId}/${targetBibleId}`;
+        message = this.translate('status.downloadingTargetBible', { targetBible: targetBibleDescr });
+        await showInformationMessage(message);
         // @ts-ignore
         const targetFoundPath = await (0, resourceUtils_1.downloadTargetBible)(targetBibleId, resourceUtils_1.resourcesPath, targetLanguageId, targetOwner, catalog, bookId, 'master');
         if (!targetFoundPath) {
-            await showErrorMessage(`Target Bible Failed to Load`, true);
-            showErrorMessage(`Target Bible Failed to Load`, true);
-            return {
-                errorMessage: `Target Bible Failed to Load`,
-                success: false
-            };
+            return this.showError('status.targetBibleDownloadError');
         }
         const { repoInitSuccess, repoPath } = await this.doRepoInitAll(targetLanguageId, targetBibleId, glOptions.languageId, targetOwner, glOptions.owner, catalog, bookId, preRelease);
         if (!repoInitSuccess) {
-            await showErrorMessage(`Failed to Initialize Checking Project`, true);
-            showErrorMessage(`Failed to Initialize Checking Project`, true);
-            return {
-                errorMessage: `Failed to Initialize Checking Project`,
-                success: false
-            };
+            return this.showError('status.errorCreatingProject');
         }
         // navigate to new folder
         const repoPathUri = vscode.Uri.file(repoPath);
-        await showInformationMessage(`Successfully initialized project at ${repoPath}`, true, 'You can now do checking by opening translationWords checks in `checking/twl` or translationNotes checks in `checking/tn`');
+        message = this.translate('status.successCreatingProject', { repoPath });
+        await showInformationMessage(message, true, this.translate('status.checkingInstructions'));
         vscode.commands.executeCommand("vscode.openFolder", repoPathUri);
         return { success: true };
     }
@@ -1104,6 +1090,7 @@ class CheckingProvider {
             checks = JSON.parse(checks);
             // @ts-ignore
             resources.checks = checks;
+            CheckingProvider.translations = resources?.locales;
             return resources;
         }
         catch {
@@ -1139,12 +1126,12 @@ class CheckingProvider {
         //////////////////////////////////
         // Target language
         // @ts-ignore
-        const targetLangChoices = (0, languages_2.getLanguagePrompts)((0, resourceUtils_1.getLanguagesInCatalog)(catalog));
+        const targetLangChoices = (0, languages_1.getLanguagePrompts)((0, resourceUtils_1.getLanguagesInCatalog)(catalog));
         let targetLanguagePick = await vscode.window.showQuickPick(targetLangChoices, {
             placeHolder: "Select the target language:",
         });
         // @ts-ignore
-        targetLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(targetLanguagePick) || 'en';
+        targetLanguagePick = (0, languages_1.getLanguageCodeFromPrompts)(targetLanguagePick) || 'en';
         await showInformationMessage(`Target language selected ${targetLanguagePick}`);
         const targetOwners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], targetLanguagePick);
         const targetOwnerPick = await vscode.window.showQuickPick(targetOwners, {
@@ -1319,13 +1306,13 @@ class CheckingProvider {
         }
         //////////////////////////////////
         // GL language
-        const gatewayLanguages = (0, languages_2.getGatewayLanguages)();
-        const glChoices = (0, languages_2.getLanguagePrompts)(gatewayLanguages);
+        const gatewayLanguages = (0, languages_1.getGatewayLanguages)();
+        const glChoices = (0, languages_1.getLanguagePrompts)(gatewayLanguages);
         let gwLanguagePick = await vscode.window.showQuickPick(glChoices, {
             placeHolder: "Select the gateway checking language:",
         });
         // @ts-ignore
-        gwLanguagePick = (0, languages_2.getLanguageCodeFromPrompts)(gwLanguagePick) || "en";
+        gwLanguagePick = (0, languages_1.getLanguageCodeFromPrompts)(gwLanguagePick) || "en";
         await showInformationMessage(`GL checking language selected ${gwLanguagePick}`);
         const owners = (0, resourceUtils_1.findOwnersForLang)(catalog || [], gwLanguagePick);
         const gwOwnerPick = await vscode.window.showQuickPick(owners, {
