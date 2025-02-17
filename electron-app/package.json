@@ -4,23 +4,13 @@
   "version": "0.0.0",
   "main": "lib/backend/electron-main.js",
   "dependencies": {
-    "@theia/core": "1.57.1",
-    "@theia/editor": "1.57.1",
-    "@theia/electron": "1.57.1",
-    "@theia/filesystem": "1.57.1",
-    "@theia/markers": "1.57.1",
-    "@theia/messages": "1.57.1",
-    "@theia/monaco": "1.57.1",
-    "@theia/navigator": "1.57.1",
-    "@theia/plugin-ext-vscode": "latest",
-    "@theia/preferences": "1.57.1",
-    "@theia/process": "1.57.1",
-    "@theia/terminal": "1.57.1",
-    "@theia/workspace": "1.57.1",
+    "@theia/core": "1.58.2",
+    "@theia/plugin-ext-vscode": "1.58.2",
+    "@theia/preferences": "1.58.2",
     "empty": "0.0.0"
   },
   "devDependencies": {
-    "@theia/cli": "1.57.1",
+    "@theia/cli": "1.58.2",
     "electron": "30.5.1",
     "electron-builder": "^25.1.8"
   },
