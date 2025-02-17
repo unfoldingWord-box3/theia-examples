@@ -27,7 +27,7 @@
   "scripts": {
     "bundle": "yarn rebuild && theia build --mode development",
     "rebuild": "theia rebuild:electron --cacheRoot ..",
-    "start": "theia start --plugins=local-dir:../plugins",
+    "start": "theia start --plugins=local-dir:./plugins",
     "watch": "yarn rebuild && theia build --watch --mode development"
   },
   "theia": {
@@ -41,6 +41,7 @@
     },
     "files": [
       "lib/**/*",
+      "plugins/*",
       "package.json"
     ],
     "mac": {

@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "browser-app",
+  "name": "checking-browser-app",
   "version": "0.0.0",
   "dependencies": {
     "@theia/core": "1.57.1",
@@ -23,7 +23,7 @@
   "scripts": {
     "bundle": "yarn rebuild && theia build --mode development",
     "rebuild": "theia rebuild:browser --cacheRoot ..",
-    "start": "theia start --plugins=local-dir:../plugins",
+    "start": "theia start --plugins=local-dir:../electron-app/plugins",
     "watch": "yarn rebuild && theia build --watch --mode development"
   },
   "theia": {
